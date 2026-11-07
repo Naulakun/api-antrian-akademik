@@ -1,0 +1,365 @@
+openapi: 3.0.3
+info:
+  title: REST API Sistem Informasi Antrian Pelayanan Akademik
+  description: Dokumentasi resmi API Antrian Layanan Akademik Universitas Harkat Negeri v1.1.0 (UTS Pemrograman Web Service).
+  version: 1.1.0
+  contact:
+    name: Bilqis Nailun Najla (API Architect & Master Data)
+    email: bilqisnailunajla17@gmail.com
+
+servers:
+  - url: http://127.0.0.1:8000/api/v1
+    description: Server Lokal Pengembangan (Laragon)
+
+paths:
+  /services:
+    get:
+      summary: Mendapatkan daftar seluruh layanan akademik
+      operationId: getServices
+      tags:
+        - Master Data Layanan
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Berhasil mengambil daftar layanan dengan pagination envelope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedServiceResponse'
+
+    post:
+      summary: Menambahkan data layanan akademik baru
+      operationId: storeService
+      tags:
+        - Master Data Layanan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceInput'
+      responses:
+        '201':
+          description: Layanan baru berhasil ditambahkan.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URI detail resource baru.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceSingleResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /services/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Mendapatkan detail satu layanan akademik
+      operationId: getServiceById
+      tags:
+        - Master Data Layanan
+      responses:
+        '200':
+          description: Detail layanan ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceSingleResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    patch:
+      summary: Memperbarui data layanan akademik
+      operationId: updateService
+      tags:
+        - Master Data Layanan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceInput'
+      responses:
+        '200':
+          description: Data layanan berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceSingleResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      summary: Menghapus data layanan akademik
+      operationId: deleteService
+      tags:
+        - Master Data Layanan
+      responses:
+        '204':
+          description: Layanan berhasil dihapus (No Content).
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /counters:
+    get:
+      summary: Mendapatkan daftar loket pelayanan dan statusnya
+      operationId: getCounters
+      tags:
+        - Master Data Loket
+      responses:
+        '200':
+          description: Daftar loket berhasil dimuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Counter'
+
+  /tickets:
+    get:
+      summary: Monitoring antrean aktif hari ini
+      operationId: getActiveTickets
+      tags:
+        - Transaksi Antrean
+      responses:
+        '200':
+          description: Daftar tiket aktif berhasil dimuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ticket'
+
+    post:
+      summary: Pengambilan nomor tiket antrean baru oleh mahasiswa
+      operationId: takeTicket
+      tags:
+        - Transaksi Antrean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - service_id
+                - student_nim
+              properties:
+                service_id:
+                  type: integer
+                  example: 1
+                student_nim:
+                  type: string
+                  example: "2023010045"
+      responses:
+        '201':
+          description: Tiket antrean berhasil dicetak.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketSingleResponse'
+        '422':
+          description: Gagal karena validasi atau layanan tutup saat hari libur nasional (Nager.Date API).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Layanan tutup pada hari libur nasional (Tahun Baru Imlek)."
+                  errors:
+                    type: object
+
+  /tickets/call-next:
+    post:
+      summary: Pemanggilan nomor antrean berikutnya oleh petugas loket
+      operationId: callNextTicket
+      tags:
+        - Transaksi Antrean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - counter_id
+                - officer_name
+              properties:
+                counter_id:
+                  type: integer
+                  example: 1
+                officer_name:
+                  type: string
+                  example: "Budi Santoso"
+      responses:
+        '200':
+          description: Antrean berhasil dipanggil menuju loket.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketSingleResponse'
+        '409':
+          description: Tidak ada nomor antrean yang menunggu (Antrean Kosong).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Tidak ada antrean yang menunggu."
+                  code:
+                    type: string
+                    example: "QUEUE_EMPTY"
+
+components:
+  schemas:
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: "SRV-01"
+        name:
+          type: string
+          example: "Legalisir Ijazah & Transkrip"
+        estimated_duration:
+          type: integer
+          example: 15
+        is_active:
+          type: boolean
+          example: true
+
+    ServiceInput:
+      type: object
+      required:
+        - code
+        - name
+        - estimated_duration
+      properties:
+        code:
+          type: string
+          example: "SRV-01"
+        name:
+          type: string
+          example: "Legalisir Ijazah & Transkrip"
+        estimated_duration:
+          type: integer
+          example: 15
+        is_active:
+          type: boolean
+          default: true
+
+    Counter:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        counter_number:
+          type: string
+          example: "L-01"
+        name:
+          type: string
+          example: "Loket Pelayanan Akademik 1"
+        status:
+          type: string
+          example: "active"
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 101
+        ticket_number:
+          type: string
+          example: "SRV01-001"
+        student_nim:
+          type: string
+          example: "2023010045"
+        service:
+          $ref: '#/components/schemas/Service'
+        counter:
+          $ref: '#/components/schemas/Counter'
+        status:
+          type: string
+          enum: [waiting, called, completed, cancelled]
+          example: "waiting"
+        created_at:
+          type: string
+          format: date-time
+
+    PaginatedServiceResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+        links:
+          type: object
+        meta:
+          type: object
+
+    ServiceSingleResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Service'
+
+    TicketSingleResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Ticket'
+
+  responses:
+    NotFoundError:
+      description: Resource yang dicari tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Data tidak ditemukan."
+    ValidationError:
+      description: Validasi input gagal.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "The code field is required."
+              errors:
+                type: object
